@@ -1,0 +1,9 @@
+/* Global app styles — warm inviting layout */
+.app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #e6ecf5 0%, #f0eff4 40%, #f5f0ec 100%);
+  padding: 20px;
+}

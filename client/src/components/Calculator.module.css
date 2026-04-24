@@ -1,0 +1,184 @@
+/* Calculator design — clean & professional */
+
+.calculator {
+  width: 500px;
+  max-width: 95vw;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* --- Display --- */
+.display {
+  background: linear-gradient(135deg, #f7f8fc 0%, #faf9f7 100%);
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 20px;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  border: 1px solid #e8eaed;
+  position: relative;
+}
+
+.memoryDisplay {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  font-size: 0.8rem;
+  color: #5f6368;
+  font-weight: 500;
+}
+
+.value {
+  font-size: 2.6rem;
+  font-weight: 300;
+  color: #202124;
+  word-break: break-all;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.error {
+  font-size: 0.85rem;
+  color: #d93025;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.operator {
+  font-size: 2.6rem;
+  color: #1a73e8;
+  font-weight: 300;
+}
+
+.expression {
+  font-size: 1rem;
+  color: #9aa0a6;
+  margin-bottom: 4px;
+  font-weight: 400;
+}
+
+/* --- Button grid --- */
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* --- Shared button styles --- */
+.digitBtn,
+.operatorBtn,
+.memoryBtn,
+.clearBtn,
+.equalsBtn {
+  border: none;
+  border-radius: 16px;
+  font-size: 1.3rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 18px 0;
+  transition: all 0.2s ease;
+}
+
+.digitBtn:active,
+.operatorBtn:active,
+.memoryBtn:active,
+.clearBtn:active,
+.equalsBtn:active {
+  transform: scale(0.93);
+}
+
+/* Digit buttons — clean light */
+.digitBtn {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.digitBtn:hover {
+  background: #e8eaed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Operator buttons — warm blue */
+.operatorBtn {
+  background: linear-gradient(135deg, #4285f4, #1a73e8);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(26, 115, 232, 0.28);
+}
+
+.operatorBtn:hover {
+  background: linear-gradient(135deg, #5a95f5, #4285f4);
+  box-shadow: 0 4px 14px rgba(26, 115, 232, 0.38);
+}
+
+.operatorBtn.active {
+  background: #4094f0;
+  box-shadow: 0 0 16px rgba(26, 115, 232, 0.4);
+}
+
+/* Memory buttons — soft blue tint */
+.memoryBtn {
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.memoryBtn:hover {
+  background: #d2e3fc;
+  box-shadow: 0 1px 4px rgba(26, 115, 232, 0.1);
+}
+
+/* Clear button — warm accent */
+.clearBtn {
+  background: #fef3e8;
+  color: #e8710a;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.clearBtn:hover {
+  background: #fde7cc;
+  box-shadow: 0 1px 4px rgba(232, 113, 10, 0.12);
+}
+
+/* Equals button — inviting blue */
+.equalsBtn {
+  background: linear-gradient(135deg, #4285f4, #1a73e8);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(26, 115, 232, 0.3);
+}
+
+.equalsBtn:hover {
+  background: linear-gradient(135deg, #5a95f5, #4285f4);
+  box-shadow: 0 4px 14px rgba(26, 115, 232, 0.42);
+}
+
+/* --- Responsive --- */
+@media (max-width: 400px) {
+  .calculator {
+    max-width: 100%;
+    border-radius: 0;
+    padding: 16px;
+  }
+
+  .digitBtn,
+  .operatorBtn,
+  .memoryBtn,
+  .clearBtn,
+  .equalsBtn {
+    padding: 14px 0;
+    font-size: 1.1rem;
+  }
+
+  .value {
+    font-size: 2rem;
+  }
+}
