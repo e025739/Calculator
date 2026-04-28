@@ -1,29 +1,25 @@
+using CalculatorApi.Handlers;
 using CalculatorApi.Models;
-using CalculatorApi.Operations;
 
 namespace CalculatorApi.Services;
 
 /// <summary>
-/// Performs arithmetic calculations using the Strategy Pattern.
-/// Each operator is mapped to an IOperation implementation,
-/// so adding a new operation requires no changes to this class (Open/Closed Principle).
+/// Evaluates arithmetic expressions using the Chain of Responsibility pattern.
+/// Delegates precedence-aware evaluation to the injected handler chain.
 /// </summary>
-public class CalculatorService : ICalculatorService
+public sealed class CalculatorService : ICalculatorService
 {
-    private readonly Dictionary<string, IOperation> _operations;
+    private readonly IPrecedenceHandler _handler;
 
-    public CalculatorService(Dictionary<string, IOperation> operations)
+    public CalculatorService(IPrecedenceHandler handler)
     {
-        _operations = operations;
+        _handler = handler;
     }
 
     public CalculationResult Calculate(CalculationRequest request)
     {
-        if (!_operations.TryGetValue(request.Operator, out var operation))
-            throw new ArgumentException($"Unsupported operator: '{request.Operator}'. Supported: +, -, *, /");
+        var (resultOperands, _) = _handler.Handle(request.Operands, request.Operators);
 
-        var result = operation.Execute(request.Operand1, request.Operand2);
-
-        return new CalculationResult { Result = result };
+        return new CalculationResult(resultOperands[0]);
     }
 }

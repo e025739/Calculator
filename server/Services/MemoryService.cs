@@ -1,10 +1,10 @@
 namespace CalculatorApi.Services;
 
 /// <summary>
-/// Manages the calculator's memory value.
-/// Registered as Singleton so the memory persists across HTTP requests.
+/// Manages the calculator's memory value (persists across requests).
+/// Thread-safe: uses locking to handle concurrent HTTP requests.
 /// </summary>
-public class MemoryService : IMemoryService
+public sealed class MemoryService : IMemoryService
 {
     private readonly object _lock = new();
     private double _memoryValue;
@@ -22,5 +22,10 @@ public class MemoryService : IMemoryService
     public void SubtractFromMemory(double value)
     {
         lock (_lock) _memoryValue -= value;
+    }
+
+    public void ClearMemory()
+    {
+        lock (_lock) _memoryValue = 0;
     }
 }

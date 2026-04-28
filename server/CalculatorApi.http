@@ -1,6 +1,33 @@
 @CalculatorApi_HostAddress = http://localhost:5049
 
-GET {{CalculatorApi_HostAddress}}/weatherforecast/
+### Calculate expression (2 + 3 * 4 = 14)
+POST {{CalculatorApi_HostAddress}}/api/calculator/calculate
+Content-Type: application/json
+
+{
+  "operands": [2, 3, 4],
+  "operators": ["+", "*"]
+}
+
+### Get memory value
+GET {{CalculatorApi_HostAddress}}/api/calculator/memory
 Accept: application/json
 
-###
+### Add value to memory
+POST {{CalculatorApi_HostAddress}}/api/calculator/memory/add
+Content-Type: application/json
+
+{
+  "value": 42
+}
+
+### Subtract value from memory
+POST {{CalculatorApi_HostAddress}}/api/calculator/memory/subtract
+Content-Type: application/json
+
+{
+  "value": 10
+}
+
+### Clear memory
+POST {{CalculatorApi_HostAddress}}/api/calculator/memory/clear

@@ -1,11 +1,10 @@
 namespace CalculatorApi.Operations;
 
 /// <summary>
-/// Division operation strategy.
-/// Throws DivideByZeroException when dividing by zero,
-/// which is caught by the global ExceptionHandlingMiddleware.
+/// Division operation. Throws DivideByZeroException for division by zero,
+/// which propagates to ExceptionHandlingMiddleware and returns HTTP 400.
 /// </summary>
-public class DivideOperation : IOperation
+public sealed class DivideOperation : IOperation
 {
     public double Execute(double a, double b)
     {

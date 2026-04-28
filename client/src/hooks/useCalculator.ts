@@ -1,173 +1,238 @@
-import { useState, useEffect } from 'react';
+import { useReducer, useEffect, useState, useMemo, useCallback } from 'react';
 import * as api from '../services/apiService';
+import type { Operator, Digit } from '../types/calculator.types';
 
-/**
- * Custom hook that encapsulates all calculator logic.
- * The component that uses this hook only handles UI — no business logic.
- */
-type Operator = '+' | '-' | '*' | '/';
+/** Discriminated union for all calculator actions — provides full type safety */
+export type CalculatorAction =
+  | { type: 'DIGIT_PRESSED'; digit: Digit }
+  | { type: 'OPERATOR_PRESSED'; operator: Operator }
+  | { type: 'DECIMAL_PRESSED' }
+  | { type: 'EQUALS_RESULT'; result: number }
+  | { type: 'CLEAR' }
+  | { type: 'ERROR'; message: string }
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'MEMORY_RECALL'; value: number };
 
-interface CalculatorState {
+export interface CalculatorState {
   display: string;
-  firstOperand: number | null;
-  operator: Operator | null;
-  waitingForSecondOperand: boolean;
+  operands: number[];
+  operators: Operator[];
+  waitingForOperand: boolean;
   error: string | null;
-  expression: string;
 }
 
-const initialState: CalculatorState = {
+export const INCOMPLETE_EXPRESSION_ERROR = 'Incomplete expression';
+export const MAX_DISPLAY_LENGTH = 16;
+
+export const initialState: CalculatorState = {
   display: '0',
-  firstOperand: null,
-  operator: null,
-  waitingForSecondOperand: false,
+  operands: [],
+  operators: [],
+  waitingForOperand: false,
   error: null,
-  expression: '',
 };
 
-export function useCalculator() {
-  const [state, setState] = useState<CalculatorState>(initialState);
+/** Pure function — all state transitions in one place, easy to test in isolation */
+export function calculatorReducer(state: CalculatorState, action: CalculatorAction): CalculatorState {
+  switch (action.type) {
+    case 'DIGIT_PRESSED':
+      if (state.waitingForOperand) {
+        return { ...state, display: action.digit, waitingForOperand: false, error: null };
+      }
+      if (state.display.length >= MAX_DISPLAY_LENGTH) return state;
+      return {
+        ...state,
+        display: state.display === '0' ? action.digit : state.display + action.digit,
+        error: null,
+      };
+
+    case 'DECIMAL_PRESSED':
+      if (state.waitingForOperand) {
+        return { ...state, display: '0.', waitingForOperand: false, error: null };
+      }
+      if (state.display.includes('.')) return state;
+      if (state.display.length >= MAX_DISPLAY_LENGTH) return state;
+      return { ...state, display: state.display + '.', error: null };
+
+    case 'OPERATOR_PRESSED':
+      // If already waiting for operand, replace the last operator (e.g., 5 + - becomes 5 -)
+      if (state.waitingForOperand) {
+        const updatedOperators = [...state.operators];
+        updatedOperators[updatedOperators.length - 1] = action.operator;
+        return { ...state, operators: updatedOperators, error: null };
+      }
+      return {
+        ...state,
+        operands: [...state.operands, parseFloat(state.display)],
+        operators: [...state.operators, action.operator],
+        waitingForOperand: true,
+        error: null,
+      };
+
+    case 'EQUALS_RESULT':
+      return {
+        display: String(action.result),
+        operands: [],
+        operators: [],
+        waitingForOperand: false,
+        error: null,
+      };
+
+    case 'CLEAR':
+      return initialState;
+
+    case 'ERROR':
+      return { ...state, error: action.message };
+
+    case 'CLEAR_ERROR':
+      return { ...state, error: null };
+
+    case 'MEMORY_RECALL':
+      return { ...state, display: String(action.value), waitingForOperand: false, error: null };
+
+    default:
+      return state;
+  }
+}
+
+/** Describes the public API of the useCalculator hook */
+interface UseCalculatorReturn {
+  display: string;
+  activeOperator: Operator | null;
+  error: string | null;
+  expression: string;
+  memoryValue: number;
+  isCalculating: boolean;
+  handleDigit: (digit: Digit) => void;
+  handleDecimal: () => void;
+  handleOperator: (op: Operator) => void;
+  handleEquals: () => void;
+  handleClear: () => void;
+  handleMemoryRecall: () => void;
+  handleMemoryAdd: () => void;
+  handleMemorySubtract: () => void;
+  handleMemoryClear: () => void;
+}
+
+export function useCalculator(): UseCalculatorReturn {
+  const [state, dispatch] = useReducer(calculatorReducer, initialState);
   const [memoryValue, setMemoryValue] = useState<number>(0);
+  const [isCalculating, setIsCalculating] = useState(false);
 
+  // Derived values — computed from state, not stored
+  const expression = useMemo(() => {
+    if (state.operands.length === 0) return '';
+    const parts = state.operands.map((n, i) => `${n} ${state.operators[i] ?? ''}`).join(' ').trim();
+    return state.waitingForOperand ? parts : `${parts} ${state.display}`;
+  }, [state.operands, state.operators, state.waitingForOperand, state.display]);
 
+  const activeOperator: Operator | null = state.operators[state.operators.length - 1] ?? null;
 
-  // Fetch memory value on mount
+  // Auto-clear errors after 3 seconds
   useEffect(() => {
+    if (!state.error) return;
+    const timer = setTimeout(() => dispatch({ type: 'CLEAR_ERROR' }), 3000);
+    return () => clearTimeout(timer);
+  }, [state.error]);
+
+  // Fetch memory value on mount (with cleanup for StrictMode double-mount)
+  useEffect(() => {
+    const controller = new AbortController();
     api.getMemory()
-    .then(setMemoryValue)
-    .catch(() => setState(prev => ({ ...prev, error: 'Failed to load memory' })));
+      .then(value => { if (!controller.signal.aborted) setMemoryValue(value); })
+      .catch(() => { if (!controller.signal.aborted) dispatch({ type: 'ERROR', message: 'Failed to load memory' }); });
+    return () => controller.abort();
   }, []);
 
-  // Appends a digit to the current display value
-  const handleDigit = (digit: string) => {
-    setState(prev => {
-      // After pressing an operator, start fresh for the second operand
-      if (prev.waitingForSecondOperand) {
-        return { ...prev, display: digit, waitingForSecondOperand: false, error: null };
-      }
-      // Replace leading zero, otherwise append
-      const newDisplay = prev.display === '0' ? digit : prev.display + digit;
-      return { ...prev, display: newDisplay, error: null };
-    });
+  const refreshMemory = async () => {
+    const value = await api.getMemory();
+    setMemoryValue(value);
+    return value;
   };
 
-  // Adds a decimal point (only one allowed)
-  const handleDecimal = () => {
-    setState(prev => {
-      if (prev.waitingForSecondOperand) {
-        return { ...prev, display: '0.', waitingForSecondOperand: false, error: null };
-      }
-      if (prev.display.includes('.')) return prev;
-      return { ...prev, display: prev.display + '.', error: null };
-    });
-  };
+  const handleDigit = useCallback((digit: Digit) => dispatch({ type: 'DIGIT_PRESSED', digit }), []);
+  const handleDecimal = useCallback(() => dispatch({ type: 'DECIMAL_PRESSED' }), []);
+  const handleOperator = useCallback((op: Operator) => dispatch({ type: 'OPERATOR_PRESSED', operator: op }), []);
+  const handleClear = useCallback(() => dispatch({ type: 'CLEAR' }), []);
 
-  // Stores the first operand and the chosen operator
-  // If there's already a pending operation, calculate it first
-  const handleOperator = async (op: Operator) => {
-    if (state.firstOperand !== null && state.operator !== null && !state.waitingForSecondOperand) {
-      try {
-        const result = await api.calculate({
-          operand1: state.firstOperand,
-          operand2: parseFloat(state.display),
-          operator: state.operator,
-        });
-        setState({
-          display: String(result.result),
-          firstOperand: result.result,
-          operator: op,
-          waitingForSecondOperand: true,
-          error: null,
-          expression: `${result.result} ${op}`,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Calculation error';
-        setState(prev => ({ ...prev, error: message }));
-      }
-    } else {
-      const operand = parseFloat(state.display);
-      setState(prev => ({
-        ...prev,
-        firstOperand: operand,
-        operator: op,
-        waitingForSecondOperand: true,
-        error: null,
-        expression: `${operand} ${op}`,
-      }));
+  /** Resolves the current value: if there's a pending expression, calculates it; otherwise returns the display value */
+  const resolveCurrentValue = async (): Promise<number> => {
+    if (state.operators.length > 0 && !state.waitingForOperand) {
+      const allOperands = [...state.operands, parseFloat(state.display)];
+      const result = await api.calculate({ operands: allOperands, operators: state.operators });
+      return result.result;
     }
+    return parseFloat(state.display);
   };
 
-  // Sends both operands + operator to the server for calculation
   const handleEquals = async () => {
-    if (state.firstOperand === null || state.operator === null) return;
+    if (isCalculating || state.operators.length === 0) return;
+    if (state.waitingForOperand) {
+      dispatch({ type: 'ERROR', message: INCOMPLETE_EXPRESSION_ERROR });
+      return;
+    }
 
+    setIsCalculating(true);
     try {
-      const result = await api.calculate({
-        operand1: state.firstOperand,
-        operand2: parseFloat(state.display),
-        operator: state.operator,
-      });
-
-      setState({
-        display: String(result.result),
-        firstOperand: null,
-        operator: null,
-        waitingForSecondOperand: false,
-        error: null,
-        expression: '',
-      });
+      const result = await resolveCurrentValue();
+      dispatch({ type: 'EQUALS_RESULT', result });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Calculation error';
-      setState(prev => ({ ...prev, error: message }));
+      dispatch({ type: 'ERROR', message });
+    } finally {
+      setIsCalculating(false);
     }
   };
 
-  // Resets the calculator to its initial state
-  const handleClear = () => {
-    setState(initialState);
-  };
-
-  // Memory: recall — replaces display with the stored memory value
   const handleMemoryRecall = async () => {
+    setIsCalculating(true);
     try {
-      const value = await api.getMemory();
-      setMemoryValue(value);
-      setState(prev => ({ ...prev, display: String(value), error: null }));
+      const value = await refreshMemory();
+      dispatch({ type: 'MEMORY_RECALL', value });
     } catch {
-      setState(prev => ({ ...prev, error: 'Memory error' }));
+      dispatch({ type: 'ERROR', message: 'Memory error' });
+    } finally {
+      setIsCalculating(false);
     }
   };
 
-  // Memory: add current display value to server memory
-  const handleMemoryAdd = async () => {
+  const handleMemoryOperation = async (operation: 'add' | 'subtract') => {
+    setIsCalculating(true);
     try {
-      await api.addToMemory(parseFloat(state.display));
-      const value = await api.getMemory();
-      setMemoryValue(value);
-      setState(prev => ({ ...prev, error: null }));
-    } catch {
-      setState(prev => ({ ...prev, error: 'Memory error' }));
+      const valueToStore = await resolveCurrentValue();
+      const memoryFn = operation === 'add' ? api.addToMemory : api.subtractFromMemory;
+      await memoryFn(valueToStore);
+      await refreshMemory();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Memory error';
+      dispatch({ type: 'ERROR', message });
+    } finally {
+      setIsCalculating(false);
     }
   };
 
-  // Memory: subtract current display value from server memory
-  const handleMemorySubtract = async () => {
+  const handleMemoryAdd = () => handleMemoryOperation('add');
+  const handleMemorySubtract = () => handleMemoryOperation('subtract');
+
+  const handleMemoryClear = async () => {
+    setIsCalculating(true);
     try {
-      await api.subtractFromMemory(parseFloat(state.display));
-      const value = await api.getMemory();
-      setMemoryValue(value);
-      setState(prev => ({ ...prev, error: null }));
+      await api.clearMemory();
+      await refreshMemory();
     } catch {
-      setState(prev => ({ ...prev, error: 'Memory error' }));
+      dispatch({ type: 'ERROR', message: 'Memory error' });
+    } finally {
+      setIsCalculating(false);
     }
   };
 
   return {
     display: state.display,
-    operator: state.operator,
+    activeOperator,
     error: state.error,
-    expression: state.expression,
+    expression,
     memoryValue,
+    isCalculating,
     handleDigit,
     handleDecimal,
     handleOperator,
@@ -176,5 +241,6 @@ export function useCalculator() {
     handleMemoryRecall,
     handleMemoryAdd,
     handleMemorySubtract,
+    handleMemoryClear,
   };
 }
